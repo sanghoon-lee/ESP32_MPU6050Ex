@@ -1,5 +1,10 @@
 #include <Wire.h>
 
+/**
+  MPU6050의 가속도 센서에서 사용할 Full Scale Range
+*/
+const uint8_t AFS_SEL = 0;
+
 /** 
   MPU6050의 기본 I2C Address
 */
@@ -8,6 +13,7 @@ const uint8_t MPU6050_I2C_ADDR  = 0x68;
 /**
   MPU6050의 레지스터 Address
 */
+const uint8_t ACCEL_CONFIG = 0x1C;
 const uint8_t ACCEL_XOUT_H = 0x3B;
 const uint8_t ACCEL_XOUT_L = 0x3C;
 const uint8_t ACCEL_YOUT_H = 0x3D;
@@ -49,6 +55,43 @@ void wakeup(){
 }
 
 /**
+  MPU6050의 Full Scale Range를 설정
+*/
+void setFullScaleRange(){
+  Wire.beginTransmission(MPU6050_I2C_ADDR); // I2C통신으로 데이터 전송 시작 (MPU6050)
+  Wire.write(ACCEL_CONFIG); // 레지스터의 위치를 ACCEL_CONFIG로 지정
+  if(AFS_SEL==0){
+    Wire.write(0x00); // Full Scale Range = +/- 2g
+  } else if(AFS_SEL==1){
+    Wire.write(0x08); // Full Scale Range = +/- 4g
+  } else if(AFS_SEL==2){
+    Wire.write(0x10); // Full Scale Range = +/- 8g
+  } else if(AFS_SEL==3){
+    Wire.write(0x18); // Full Scale Range = +/- 16g
+  }
+  Wire.endTransmission(true); // I2C통신으로 데이터 전송 종료 (연결 해제)
+}
+
+/**
+  Full Scale Range에 따른 1G당 가속도 값을 반환
+*/
+uint16_t getGUnit(){
+  uint16_t g_unit = 0;
+
+  if(AFS_SEL==0){
+    g_unit = 16384; // Full Scale Range = +/- 2g
+  } else if(AFS_SEL==1){
+    g_unit = 8192; // Full Scale Range = +/- 4g
+  } else if(AFS_SEL==2){
+    g_unit = 4096; // Full Scale Range = +/- 8g
+  } else if(AFS_SEL==3){
+    g_unit = 2048; // Full Scale Range = +/- 16g
+  }
+
+  return g_unit;
+}
+
+/**
   MPU-6050 센서 측정값 얻기
 */
 MPU6050Data measure() {
@@ -79,6 +122,7 @@ void setup() {
   Serial.begin(115200); // 시리얼 통신 시작 (baudrate는 115200으로 설정)
 
   wakeup();
+  setFullScaleRange();
 }
 
 /**
@@ -87,10 +131,11 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   MPU6050Data sensingValue = measure();
+  uint16_t g_unit = getGUnit();
 
-  Serial.printf("ACCEL_X : %d\n",sensingValue.AcX);
-  Serial.printf("ACCEL_Y : %d\n",sensingValue.AcY);
-  Serial.printf("ACCEL_Z : %d\n",sensingValue.AcZ);
+  Serial.printf("ACCEL_X : %d\n",sensingValue.AcX/g_unit);
+  Serial.printf("ACCEL_Y : %d\n",sensingValue.AcY/g_unit);
+  Serial.printf("ACCEL_Z : %d\n",sensingValue.AcZ/g_unit);
   Serial.printf("TEMP : %d\n",sensingValue.Temp);
   Serial.printf("GYRO_X : %d\n",sensingValue.GyX);
   Serial.printf("GYRO_Y : %d\n",sensingValue.GyY);
