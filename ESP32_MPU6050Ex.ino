@@ -44,6 +44,11 @@ typedef struct _MPU6050Data{
 } MPU6050Data;
 
 /**
+  가속도 센서의 Callibration 값을 저장할 전역변수
+*/
+MPU6050Data callibrationValue;
+
+/**
   MPU6050의 동작을 활성화 시키는 함수 (wakeup)
 */
 void wakeup(){
@@ -92,7 +97,7 @@ uint16_t getGUnit(){
 }
 
 /**
-  MPU-6050 센서 측정값 얻기
+  MPU6050의 센서 측정값 얻기
 */
 MPU6050Data measure() {
   MPU6050Data sensingValue;
@@ -115,6 +120,31 @@ MPU6050Data measure() {
 }
 
 /**
+  MPU6050의 가속도 센서 값 Callibration
+*/
+void callibration(){
+  MPU6050Data sensingValue;
+  
+  int counts = 100;
+
+  uint16_t AcX = 0;
+  uint16_t AcY = 0;
+  uint16_t AcZ = 0;
+  
+  for(int i=0;i<counts;i++){
+    sensingValue = measure();
+    AcX += sensingValue.AcX;
+    AcY += sensingValue.AcY;
+    AcZ += sensingValue.AcZ;
+    delay(10);
+  }
+
+  callibrationValue.AcX = AcX / counts;
+  callibrationValue.AcY = AcY / counts;
+  callibrationValue.AcZ = AcZ / counts;
+}
+
+/**
   ESP32 보드의 setup 함수 (보드가 리셋될 때 한번만 실행되는 부분)
 */
 void setup() {
@@ -123,6 +153,7 @@ void setup() {
 
   wakeup();
   setFullScaleRange();
+  callibration();
 }
 
 /**
@@ -132,6 +163,11 @@ void loop() {
   // put your main code here, to run repeatedly:
   MPU6050Data sensingValue = measure();
   uint16_t g_unit = getGUnit();
+
+  // callibration값에서 측정된 가속도 값을 차감
+  sensingValue.AcX = sensingValue.AcX-callibrationValue.AcX;
+  sensingValue.AcY = sensingValue.AcY-callibrationValue.AcY;
+  sensingValue.AcZ = sensingValue.AcZ-callibrationValue.AcZ;
 
   Serial.printf("ACCEL_X : %d\n",sensingValue.AcX/g_unit);
   Serial.printf("ACCEL_Y : %d\n",sensingValue.AcY/g_unit);
