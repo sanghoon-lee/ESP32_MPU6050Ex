@@ -95,7 +95,7 @@ void loop() {
   Serial.printf("GYRO_X : %d\n",sensingValue.GyX);
   Serial.printf("GYRO_Y : %d\n",sensingValue.GyY);
   Serial.printf("GYRO_Z : %d\n",sensingValue.GyZ);
-  Serial.print("\n");
+  Serial.printf("\n");
 
   delay(1000); // 1초 대기
 }
