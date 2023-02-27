@@ -1,4 +1,14 @@
 #include <Wire.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+const char* ssid  = "sanghoon's a52s";  // 연결할 와이파이 공유기(AP)의 SSID명칭
+const char* password = "w2f2password";  // 연결한 와이파이 공유기(AP)의 비밀번호
+const char* server_ip = "192.168.20.87";  // MQTT Broker의 접속주소
+const int server_port = 1883;           // MQTT Broker 접속 포트번호
+
+WiFiClient wifi_client;
+PubSubClient mqtt_client(wifi_client);
 
 /**
   MPU6050의 가속도 센서에서 사용할 Full Scale Range
@@ -47,6 +57,38 @@ typedef struct _MPU6050Data{
   가속도 센서의 Callibration 값을 저장할 전역변수
 */
 MPU6050Data callibrationValue;
+
+/**
+ WIFI 공유기에 접속
+*/
+void connect(){
+  WiFi.begin(ssid, password);
+
+  while(WiFi.status()!=WL_CONNECTED){
+    delay(1000);
+    Serial.print(".");
+  }
+
+  Serial.println("Connected"); // 연결이 완료되면 Connected 문자열을 시리얼로 출력
+}
+
+/**
+  MQTT Broker에 연결하는 기능을 구현한 함수
+*/
+void mqtt_connect(){
+  mqtt_client.setServer(server_ip,server_port);
+
+  while(!mqtt_client.connected()){
+    String client_id = String(random(0xffff),HEX);
+    if(mqtt_client.connect(client_id.c_str())){
+      Serial.println("MQTT Broker is connected");
+    } else{
+      Serial.print("failed, rc=");
+      Serial.println(mqtt_client.state());
+      delay(10000); // 10초 후 재 접속
+    }
+  }
+}
 
 /**
   MPU6050의 동작을 활성화 시키는 함수 (wakeup)
@@ -169,6 +211,7 @@ void loop() {
   sensingValue.AcY = sensingValue.AcY-callibrationValue.AcY;
   sensingValue.AcZ = sensingValue.AcZ-callibrationValue.AcZ;
 
+  /**
   Serial.printf("ACCEL_X : %d\n",sensingValue.AcX/g_unit);
   Serial.printf("ACCEL_Y : %d\n",sensingValue.AcY/g_unit);
   Serial.printf("ACCEL_Z : %d\n",sensingValue.AcZ/g_unit);
@@ -177,6 +220,26 @@ void loop() {
   Serial.printf("GYRO_Y : %d\n",sensingValue.GyY);
   Serial.printf("GYRO_Z : %d\n",sensingValue.GyZ);
   Serial.printf("\n");
+  */
 
+  // WIFI 공유기에 접속이 되지 않은 경우에는 연결시도
+  if(WiFi.status()!=WL_CONNECTED){
+    connect();
+  }
+
+  // MQTT Broker 서버로 연결이 되어 있은 경우에는 연결시도
+  if(!mqtt_client.connected()){
+    mqtt_connect();
+  }
+
+  // MQTT Broker에 메시지 발행
+  char msg[30];
+  memset(msg,0,sizeof(msg));
+  sprintf(msg,"{\"vib\":[%d,%d,%d]}", sensingValue.AcX/g_unit, sensingValue.AcY/g_unit, sensingValue.AcZ/g_unit);
+  Serial.printf(msg);
+  Serial.printf("\n");
+  mqtt_client.publish("mpu6050",msg);
+  Serial.println("Message is published.");
+  
   delay(1000); // 1초 대기
 }
