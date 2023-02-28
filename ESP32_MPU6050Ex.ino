@@ -2,7 +2,7 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 
-const char* ssid  = "sanghoon's a52s";  // 연결할 와이파이 공유기(AP)의 SSID명칭
+const char* ssid  = "sanghoon's a52s"  // 연결할 와이파이 공유기(AP)의 SSID명칭
 const char* password = "w2f2password";  // 연결한 와이파이 공유기(AP)의 비밀번호
 const char* server_ip = "192.168.20.87";  // MQTT Broker의 접속주소
 const int server_port = 1883;           // MQTT Broker 접속 포트번호
@@ -44,19 +44,29 @@ const uint8_t PWR_MGMT_1 = 0x6B;
   MPU6050의 센서 데이터 구조체 선언
   */
 typedef struct _MPU6050Data{
-  uint16_t AcX; // X축 가속도(2바이트)
-  uint16_t AcY; // Y축 가속도(2바이트)
-  uint16_t AcZ; // Z축 가속도(2바이트)
-  uint16_t Temp; // 온도(2바이트)
-  uint16_t GyX; // X축 자이로(2바이트)
-  uint16_t GyY; // Y축 자이로(2바이트)
-  uint16_t GyZ; // Z축 자이로(2바이트)
+  int16_t AcX; // X축 가속도(2바이트)
+  int16_t AcY; // Y축 가속도(2바이트)
+  int16_t AcZ; // Z축 가속도(2바이트)
+  int16_t Temp; // 온도(2바이트)
+  int16_t GyX; // X축 자이로(2바이트)
+  int16_t GyY; // Y축 자이로(2바이트)
+  int16_t GyZ; // Z축 자이로(2바이트)
 } MPU6050Data;
 
 /**
-  가속도 센서의 Callibration 값을 저장할 전역변수
+ 센서의 측정 값을 저장할 전역변수
+*/
+MPU6050Data sensingValue;
+
+/**
+ 센서의 Callibration 값을 저장할 전역변수
 */
 MPU6050Data callibrationValue;
+
+/**
+ 센서의 G_UNIT을 저장할 전역변수
+*/
+int G_UNIT;
 
 /**
  WIFI 공유기에 접속
@@ -123,7 +133,7 @@ void setFullScaleRange(){
   Full Scale Range에 따른 1G당 가속도 값을 반환
 */
 uint16_t getGUnit(){
-  uint16_t g_unit = 0;
+  int16_t g_unit = 0;
 
   if(AFS_SEL==0){
     g_unit = 16384; // Full Scale Range = +/- 2g
@@ -141,9 +151,7 @@ uint16_t getGUnit(){
 /**
   MPU6050의 센서 측정값 얻기
 */
-MPU6050Data measure() {
-  MPU6050Data sensingValue;
-
+void measure() {
   Wire.beginTransmission(MPU6050_I2C_ADDR); // I2C통신으로 데이터 전송 시작 (MPU6050)
   Wire.write(ACCEL_XOUT_H); // 레지스터 위치를 ACCEL_XOUT_H로 지정
   Wire.endTransmission(false); // I2C통신으로 데이터 전송 종료 (연결 유지)
@@ -157,24 +165,20 @@ MPU6050Data measure() {
   sensingValue.GyX = Wire.read() << 8 | Wire.read();
   sensingValue.GyY = Wire.read() << 8 | Wire.read();
   sensingValue.GyZ = Wire.read() << 8 | Wire.read();
-
-  return sensingValue;
 }
 
 /**
   MPU6050의 가속도 센서 값 Callibration
 */
 void callibration(){
-  MPU6050Data sensingValue;
-  
   int counts = 100;
 
-  uint16_t AcX = 0;
-  uint16_t AcY = 0;
-  uint16_t AcZ = 0;
+  int16_t AcX = 0;
+  int16_t AcY = 0;
+  int16_t AcZ = 0;
   
   for(int i=0;i<counts;i++){
-    sensingValue = measure();
+    measure();
     AcX += sensingValue.AcX;
     AcY += sensingValue.AcY;
     AcZ += sensingValue.AcZ;
@@ -196,6 +200,7 @@ void setup() {
   wakeup();
   setFullScaleRange();
   callibration();
+  G_UNIT = getGUnit();
 }
 
 /**
@@ -203,19 +208,18 @@ void setup() {
 */
 void loop() {
   // put your main code here, to run repeatedly:
-  MPU6050Data sensingValue = measure();
-  uint16_t g_unit = getGUnit();
-
+  measure();
+  
   // callibration값에서 측정된 가속도 값을 차감
-  sensingValue.AcX = sensingValue.AcX-callibrationValue.AcX;
-  sensingValue.AcY = sensingValue.AcY-callibrationValue.AcY;
-  sensingValue.AcZ = sensingValue.AcZ-callibrationValue.AcZ;
+  sensingValue.AcX = (sensingValue.AcX-callibrationValue.AcX);
+  sensingValue.AcY = (sensingValue.AcY-callibrationValue.AcY);
+  sensingValue.AcZ = (sensingValue.AcZ-callibrationValue.AcZ);
 
   /**
-  Serial.printf("ACCEL_X : %d\n",sensingValue.AcX/g_unit);
-  Serial.printf("ACCEL_Y : %d\n",sensingValue.AcY/g_unit);
-  Serial.printf("ACCEL_Z : %d\n",sensingValue.AcZ/g_unit);
-  Serial.printf("TEMP : %d\n",sensingValue.Temp);
+  Serial.printf("ACCEL_X : %d\n",sensingValue.AcX);
+  Serial.printf("ACCEL_Y : %d\n",sensingValue.AcY);
+  Serial.printf("ACCEL_Z : %d\n",sensingValue.AcZ);
+  Serial.printf("TEMP : %f\n",(sensingValue.Temp)/340.00+36.53);
   Serial.printf("GYRO_X : %d\n",sensingValue.GyX);
   Serial.printf("GYRO_Y : %d\n",sensingValue.GyY);
   Serial.printf("GYRO_Z : %d\n",sensingValue.GyZ);
@@ -232,14 +236,19 @@ void loop() {
     mqtt_connect();
   }
 
+  double gAcX = ((double)sensingValue.AcX/(double)G_UNIT);
+  double gAcY = ((double)sensingValue.AcY/(double)G_UNIT);
+  double gAcZ = ((double)sensingValue.AcZ/(double)G_UNIT);
+  
   // MQTT Broker에 메시지 발행
-  char msg[30];
-  memset(msg,0,sizeof(msg));
-  sprintf(msg,"{\"vib\":[%d,%d,%d]}", sensingValue.AcX/g_unit, sensingValue.AcY/g_unit, sensingValue.AcZ/g_unit);
+  char msg[80];
+  memset(msg,0x00,sizeof(msg));
+  sprintf(msg,"{\"vib\":[%lf,%lf,%lf]}", gAcX, gAcY, gAcZ);
+  
   Serial.printf(msg);
   Serial.printf("\n");
   mqtt_client.publish("mpu6050",msg);
   Serial.println("Message is published.");
-  
-  delay(1000); // 1초 대기
+
+  delay(20); // 0.01초 대기
 }
